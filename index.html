@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>声優業界問題集アプリ</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        .quiz-container {
+            min-height: 100vh;
+            max-height: 100vh;
+            overflow-y: auto;
+        }
+        .answer-feedback {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .correct-answer {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border: 2px solid #28a745;
+        }
+        .incorrect-answer {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            border: 2px solid #dc3545;
+        }
+        .question-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 123, 255, 0.3);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%);
+        }
+        .option-btn {
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .option-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .option-btn.selected {
+            border-color: #007bff;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+        .progress-bar {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            transition: width 0.3s ease;
+        }
+        .compact-text {
+            font-size: 0.85rem;
+            line-height: 1.3;
+        }
+        .compact-title {
+            font-size: 1rem;
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+        }
+        .compact-btn {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+        }
+        .mobile-optimized {
+            max-height: 100vh;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app" class="mobile-optimized">
+        <!-- メインメニュー -->
+        <div id="main-menu" class="quiz-container flex items-center justify-center p-4">
+            <div class="w-full max-w-md">
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">声優業界問題集</h1>
+                    <p class="text-gray-600">プロの声優を目指すための学習アプリ</p>
+                </div>
+                
+                <div class="question-card p-6 mb-6">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">出題数</label>
+                            <select id="question-count" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="5">5問</option>
+                                <option value="10" selected>10問</option>
+                                <option value="15">15問</option>
+                                <option value="20">20問</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">出題分野</label>
+                            <select id="question-category" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="all">全分野ランダム</option>
+                            </select>
+                        </div>
+                        
+                        <button id="start-quiz" class="w-full btn-primary text-white py-3 px-6 rounded-lg font-semibold">
+                            <i class="fas fa-play mr-2"></i>クイズ開始
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <button id="admin-mode" class="text-blue-600 hover:text-blue-800 text-sm">
+                        <i class="fas fa-cog mr-1"></i>管理モード
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- クイズ画面 -->
+        <div id="quiz-screen" class="quiz-container p-2 hidden">
+            <div class="w-full max-w-md mx-auto">
+                <!-- 進捗バー -->
+                <div class="mb-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="compact-text text-gray-600">問題 <span id="current-question">1</span>/<span id="total-questions">10</span></span>
+                        <span class="compact-text text-gray-600">正解率: <span id="accuracy">0%</span></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div id="progress-bar" class="progress-bar h-2 rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- 問題カード -->
+                <div class="question-card p-4 mb-3">
+                    <div id="question-content">
+                        <h3 id="question-text" class="compact-title font-semibold text-gray-800 mb-3"></h3>
+                        <div id="question-options" class="space-y-2 mb-3"></div>
+                        <div id="question-hint" class="text-sm text-blue-600 mb-3 hidden">
+                            <i class="fas fa-lightbulb mr-1"></i>
+                            <span id="hint-text"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- 回答結果 -->
+                    <div id="answer-feedback" class="answer-feedback mb-3 p-3 rounded-lg hidden">
+                        <div id="result-icon" class="text-center text-2xl mb-2"></div>
+                        <div id="result-text" class="compact-text text-center font-semibold mb-2"></div>
+                        <div id="user-answer" class="compact-text mb-2"></div>
+                        <div id="correct-answer" class="compact-text mb-2"></div>
+                        <div id="explanation" class="compact-text text-gray-700"></div>
+                    </div>
+                </div>
+                
+                <!-- ボタン群 -->
+                <div class="flex gap-2 mb-2">
+                    <button id="submit-answer" class="flex-1 btn-success text-white compact-btn rounded-lg font-semibold hidden">
+                        <i class="fas fa-check mr-1"></i>回答する
+                    </button>
+                    <button id="show-hint" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white compact-btn rounded-lg font-semibold">
+                        <i class="fas fa-lightbulb mr-1"></i>ヒント
+                    </button>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button id="next-question" class="flex-1 btn-primary text-white compact-btn rounded-lg font-semibold hidden">
+                        <i class="fas fa-arrow-right mr-1"></i>次の問題
+                    </button>
+                    <button id="back-to-menu" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white compact-btn rounded-lg font-semibold">
+                        <i class="fas fa-home mr-1"></i>メニューに戻る
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 結果画面 -->
+        <div id="result-screen" class="quiz-container flex items-center justify-center p-4 hidden">
+            <div class="w-full max-w-md">
+                <div class="question-card p-6 text-center">
+                    <div id="final-score" class="text-4xl font-bold text-blue-600 mb-4"></div>
+                    <div id="final-message" class="text-xl font-semibold text-gray-800 mb-4"></div>
+                    <div id="final-stats" class="text-gray-600 mb-6"></div>
+                    
+                    <div class="space-y-3">
+                        <button id="retry-quiz" class="w-full btn-primary text-white py-3 px-6 rounded-lg font-semibold">
+                            <i class="fas fa-redo mr-2"></i>もう一度挑戦
+                        </button>
+                        <button id="back-to-main" class="w-full bg-gray-500 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold">
+                            <i class="fas fa-home mr-2"></i>メニューに戻る
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 管理画面 -->
+        <div id="admin-screen" class="quiz-container p-4 hidden">
+            <div class="w-full max-w-2xl mx-auto">
+                <div class="question-card p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-gray-800">管理モード</h2>
+                        <button id="close-admin" class="text-gray-600 hover:text-gray-800">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-4">
+                            <button id="import-excel" class="w-full btn-primary text-white py-3 px-6 rounded-lg font-semibold">
+                                <i class="fas fa-upload mr-2"></i>Excelインポート
+                            </button>
+                            <button id="export-excel" class="w-full btn-success text-white py-3 px-6 rounded-lg font-semibold">
+                                <i class="fas fa-download mr-2"></i>Excelエクスポート
+                            </button>
+                        </div>
+                        <div class="space-y-4">
+                            <button id="clear-data" class="w-full btn-danger text-white py-3 px-6 rounded-lg font-semibold">
+                                <i class="fas fa-trash mr-2"></i>データクリア
+                            </button>
+                            <div class="text-sm text-gray-600">
+                                <p>問題数: <span id="question-count-display">0</span></p>
+                                <p>分野数: <span id="category-count-display">0</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <input type="file" id="file-input" accept=".xlsx,.xls,.csv" class="hidden">
+        </div>
+        
+        <!-- パスワード入力モーダル -->
+        <div id="password-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white p-6 rounded-lg w-full max-w-sm mx-4">
+                <h3 class="text-lg font-semibold mb-4">管理者パスワード</h3>
+                <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full p-3 border border-gray-300 rounded-lg mb-4">
+                <div class="flex gap-2">
+                    <button id="confirm-password" class="flex-1 btn-primary text-white py-2 px-4 rounded-lg">確認</button>
+                    <button id="cancel-password" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-lg">キャンセル</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class QuizApp {
+            constructor() {
+                this.questions = [];
+                this.currentQuestionIndex = 0;
+                this.correctAnswers = 0;
+                this.totalQuestions = 0;
+                this.userAnswers = [];
+                this.quizQuestions = [];
+                this.dbName = 'VoiceActorQuizDB';
+                this.dbVersion = 1;
+                this.db = null;
+                
+                this.initializeApp();
+            }
+            
+            async initializeApp() {
+                await this.initDB();
+                await this.loadQuestionsFromDB();
+                this.setupEventListeners();
+                this.updateCategoryOptions();
+                this.updateAdminStats();
+                this.loadDefaultQuestions();
+            }
+            
+            async initDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.dbVersion);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        this.db = request.result;
+                        resolve();
+                    };
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains('questions')) {
+                            const store = db.createObjectStore('questions', { keyPath: 'id' });
+                            store.createIndex('category', 'category', { unique: false });
+                        }
+                    };
+                });
+            }
+            
+            async saveQuestionsToDB() {
+                const transaction = this.db.transaction(['questions'], 'readwrite');
+                const store = transaction.objectStore('questions');
+                
+                // 既存データをクリア
+                await store.clear();
+                
+                // 新しいデータを保存
+                for (const question of this.questions) {
+                    await store.add(question);
+                }
+            }
+            
+            async loadQuestionsFromDB() {
+                const transaction = this.db.transaction(['questions'], 'readonly');
+                const store = transaction.objectStore('questions');
+                const request = store.getAll();
+                
+                return new Promise((resolve) => {
+                    request.onsuccess = () => {
+                        this.questions = request.result || [];
+                        resolve();
+                    };
+                });
+            }
+            
+            loadDefaultQuestions() {
+                if (this.questions.length === 0) {
+                    this.questions = [
+                        {
+                            id: 1,
+                            category: "三大権利",
+                            question: "著作隣接権の人格的権利に含まれるものは？",
+                            options: ["氏名表示権と同一性保持権", "録音権と録画権", "送信可能化権", "貸与権"],
+                            correct: "氏名表示権と同一性保持権",
+                            explanation: "著作隣接権の人格的権利には、氏名表示権（自分の名前を実名か変名で表示するのを決められる権利）と同一性保持権（自分の実演を切望したり名誉を害することを守る権利）があります。",
+                            type: "択一",
+                            hint: ""
+                        },
+                        {
+                            id: 2,
+                            category: "新人声優の定義",
+                            question: "新人声優にとって最も重要な商売道具は？",
+                            options: ["生の声", "マイクを通した声", "容姿", "演技力"],
+                            correct: "マイクを通した声",
+                            explanation: "声優にとって「声」は最大の武器。しかし重要なのは「生の声」ではなく「マイクを通した声」です。",
+                            type: "択一",
+                            hint: "マイク"
+                        },
+                        {
+                            id: 3,
+                            category: "声優の3要素",
+                            question: "現場で必要とされる声優の3要素として正しいものは？",
+                            options: ["演技、声、人間性", "技術、経験、才能", "個性、努力、運", "知識、体力、精神力"],
+                            correct: "演技、声、人間性",
+                            explanation: "現場で必要とされる声優の3要素は演技、声、人間性です。",
+                            type: "択一",
+                            hint: ""
+                        },
+                        {
+                            id: 4,
+                            category: "三大権利",
+                            question: "著作隣接権は準創作的作業を評価され生まれた権利である",
+                            options: ["正しい", "間違い"],
+                            correct: "正しい",
+                            explanation: "著作隣接権とは、準創作的作業を評価され生まれた権利です。対象は実演家（声優・俳優・歌手）、レコード制作者、放送事業者、有線放送事業者です。",
+                            type: "tf",
+                            hint: ""
+                        },
+                        {
+                            id: 5,
+                            category: "テレビ・アニメ業界の歴史",
+                            question: "勝田久の声優学校の卒業生として正しいものをすべて選択せよ。",
+                            options: ["高木渉", "森川智之", "三石琴乃", "野沢雅子"],
+                            correct: ["高木渉", "森川智之", "三石琴乃"],
+                            explanation: "勝田久の声優学校の卒業生は、高木渉、森川智之、三石琴乃、関智一です。",
+                            type: "複数選択",
+                            hint: ""
+                        }
+                    ];
+                    this.saveQuestionsToDB();
+                    this.updateCategoryOptions();
+                }
+            }
+            
+            setupEventListeners() {
+                // メニューボタン
+                document.getElementById('start-quiz').addEventListener('click', () => this.startQuiz());
+                document.getElementById('admin-mode').addEventListener('click', () => this.showPasswordModal());
+                
+                // クイズ画面ボタン
+                document.getElementById('submit-answer').addEventListener('click', () => this.submitAnswer());
+                document.getElementById('show-hint').addEventListener('click', () => this.showHint());
+                document.getElementById('next-question').addEventListener('click', () => this.nextQuestion());
+                document.getElementById('back-to-menu').addEventListener('click', () => this.backToMenu());
+                
+                // 結果画面ボタン
+                document.getElementById('retry-quiz').addEventListener('click', () => this.retryQuiz());
+                document.getElementById('back-to-main').addEventListener('click', () => this.backToMenu());
+                
+                // 管理画面ボタン
+                document.getElementById('close-admin').addEventListener('click', () => this.closeAdmin());
+                document.getElementById('import-excel').addEventListener('click', () => this.importExcel());
+                document.getElementById('export-excel').addEventListener('click', () => this.exportExcel());
+                document.getElementById('clear-data').addEventListener('click', () => this.clearData());
+                
+                // パスワードモーダル
+                document.getElementById('confirm-password').addEventListener('click', () => this.confirmPassword());
+                document.getElementById('cancel-password').addEventListener('click', () => this.cancelPassword());
+                
+                // ファイル入力
+                document.getElementById('file-input').addEventListener('change', (e) => this.handleFileUpload(e));
+            }
+            
+            updateCategoryOptions() {
+                const categorySelect = document.getElementById('question-category');
+                const categories = [...new Set(this.questions.map(q => q.category))].sort();
+                
+                // 現在の選択値を保存
+                const currentValue = categorySelect.value;
+                
+                // 選択肢をクリア
+                categorySelect.innerHTML = '<option value="all">全分野ランダム</option>';
+                
+                // 新しい分野を追加
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+                
+                // 前の選択値が存在する場合は復元
+                if (currentValue && [...categorySelect.options].some(opt => opt.value === currentValue)) {
+                    categorySelect.value = currentValue;
+                }
+            }
+            
+            updateAdminStats() {
+                const categories = [...new Set(this.questions.map(q => q.category))];
+                document.getElementById('question-count-display').textContent = this.questions.length;
+                document.getElementById('category-count-display').textContent = categories.length;
+            }
+            
+            startQuiz() {
+                const questionCount = parseInt(document.getElementById('question-count').value);
+                const category = document.getElementById('question-category').value;
+                
+                let availableQuestions = this.questions;
+                if (category !== 'all') {
+                    availableQuestions = this.questions.filter(q => q.category === category);
+                }
+                
+                if (availableQuestions.length === 0) {
+                    alert('問題がありません。管理モードから問題を追加してください。');
+                    return;
+                }
+                
+                // 問題をシャッフルして指定数だけ取得
+                this.quizQuestions = this.shuffleArray([...availableQuestions]).slice(0, questionCount);
+                this.currentQuestionIndex = 0;
+                this.correctAnswers = 0;
+                this.userAnswers = [];
+                this.totalQuestions = this.quizQuestions.length;
+                
+                this.showScreen('quiz-screen');
+                this.displayQuestion();
+            }
+            
+            shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+            
+            displayQuestion() {
+                const question = this.quizQuestions[this.currentQuestionIndex];
+                
+                // 進捗更新
+                document.getElementById('current-question').textContent = this.currentQuestionIndex + 1;
+                document.getElementById('total-questions').textContent = this.totalQuestions;
+                document.getElementById('accuracy').textContent = 
+                    this.currentQuestionIndex === 0 ? '0%' : 
+                    Math.round((this.correctAnswers / this.currentQuestionIndex) * 100) + '%';
+                
+                const progress = ((this.currentQuestionIndex + 1) / this.totalQuestions) * 100;
+                document.getElementById('progress-bar').style.width = progress + '%';
+                
+                // 問題表示
+                document.getElementById('question-text').textContent = question.question;
+                
+                // 選択肢表示
+                const optionsContainer = document.getElementById('question-options');
+                optionsContainer.innerHTML = '';
+                
+                if (question.type === 'tf') {
+                    // True/False問題 - 常に「正しい」「間違い」を表示
+                    const tfOptions = ['正しい', '間違い'];
+                    tfOptions.forEach((option, index) => {
+                        const button = document.createElement('button');
+                        button.className = 'option-btn w-full p-3 text-left bg-white border border-gray-300 rounded-lg hover:bg-gray-50 compact-text';
+                        button.textContent = option;
+                        button.onclick = () => this.selectOption(index, button, true);
+                        optionsContainer.appendChild(button);
+                    });
+                } else if (question.type === '複数選択') {
+                    // 複数選択問題
+                    question.options.forEach((option, index) => {
+                        const button = document.createElement('button');
+                        button.className = 'option-btn w-full p-3 text-left bg-white border border-gray-300 rounded-lg hover:bg-gray-50 compact-text';
+                        button.textContent = option;
+                        button.onclick = () => this.selectOption(index, button, false);
+                        optionsContainer.appendChild(button);
+                    });
+                    document.getElementById('submit-answer').classList.remove('hidden');
+                } else {
+                    // 択一問題
+                    question.options.forEach((option, index) => {
+                        const button = document.createElement('button');
+                        button.className = 'option-btn w-full p-3 text-left bg-white border border-gray-300 rounded-lg hover:bg-gray-50 compact-text';
+                        button.textContent = option;
+                        button.onclick = () => this.selectOption(index, button, true);
+                        optionsContainer.appendChild(button);
+                    });
+                }
+                
+                // ヒント設定
+                if (question.hint) {
+                    document.getElementById('show-hint').classList.remove('hidden');
+                } else {
+                    document.getElementById('show-hint').classList.add('hidden');
+                }
+                
+                // リセット
+                document.getElementById('question-hint').classList.add('hidden');
+                document.getElementById('answer-feedback').classList.add('hidden');
+                document.getElementById('next-question').classList.add('hidden');
+                this.selectedOptions = [];
+            }
+            
+            selectOption(index, button, autoSubmit) {
+                const question = this.quizQuestions[this.currentQuestionIndex];
+                
+                if (question.type === '複数選択') {
+                    // 複数選択の場合
+                    if (this.selectedOptions.includes(index)) {
+                        this.selectedOptions = this.selectedOptions.filter(i => i !== index);
+                        button.classList.remove('selected');
+                    } else {
+                        this.selectedOptions.push(index);
+                        button.classList.add('selected');
+                    }
+                } else {
+                    // 択一・T/F問題の場合
+                    document.querySelectorAll('.option-btn').forEach(btn => btn.classList.remove('selected'));
+                    button.classList.add('selected');
+                    this.selectedOptions = [index];
+                    
+                    if (autoSubmit) {
+                        setTimeout(() => this.submitAnswer(), 300);
+                    }
+                }
+            }
+            
+            submitAnswer() {
+                const question = this.quizQuestions[this.currentQuestionIndex];
+                
+                if (this.selectedOptions.length === 0) {
+                    alert('選択肢を選んでください。');
+                    return;
+                }
+                
+                let selectedAnswers, isCorrect;
+                
+                if (question.type === 'tf') {
+                    // T/F問題の場合
+                    const tfOptions = ['正しい', '間違い'];
+                    selectedAnswers = this.selectedOptions.map(i => tfOptions[i]);
+                    const userAnswer = selectedAnswers[0];
+                    const correctAnswer = (question.correct === 'true' || question.correct === '正しい') ? '正しい' : '間違い';
+                    isCorrect = userAnswer === correctAnswer;
+                } else {
+                    // 択一・複数選択問題の場合
+                    selectedAnswers = this.selectedOptions.map(i => question.options[i]);
+                    
+                    if (question.type === '複数選択') {
+                        const correctAnswers = Array.isArray(question.correct) ? question.correct : [question.correct];
+                        isCorrect = selectedAnswers.length === correctAnswers.length && 
+                                   selectedAnswers.every(answer => correctAnswers.includes(answer));
+                    } else {
+                        isCorrect = selectedAnswers[0] === question.correct;
+                    }
+                }
+                
+                if (isCorrect) {
+                    this.correctAnswers++;
+                }
+                
+                this.userAnswers.push({
+                    question: question.question,
+                    userAnswer: selectedAnswers,
+                    correct: question.correct,
+                    isCorrect: isCorrect
+                });
+                
+                this.showAnswerFeedback(isCorrect, selectedAnswers, question);
+                
+                // ボタンを無効化
+                document.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
+                document.getElementById('submit-answer').classList.add('hidden');
+                document.getElementById('next-question').classList.remove('hidden');
+            }
+            
+            showAnswerFeedback(isCorrect, selectedAnswers, question) {
+                const feedbackDiv = document.getElementById('answer-feedback');
+                const resultIcon = document.getElementById('result-icon');
+                const resultText = document.getElementById('result-text');
+                const userAnswer = document.getElementById('user-answer');
+                const correctAnswer = document.getElementById('correct-answer');
+                const explanation = document.getElementById('explanation');
+                
+                if (isCorrect) {
+                    feedbackDiv.className = 'answer-feedback correct-answer mb-3 p-3 rounded-lg';
+                    resultIcon.textContent = '🎉';
+                    resultText.textContent = '正解！';
+                    userAnswer.textContent = `✅ あなたの回答: ${selectedAnswers.join(', ')}`;
+                    correctAnswer.textContent = '';
+                } else {
+                    feedbackDiv.className = 'answer-feedback incorrect-answer mb-3 p-3 rounded-lg';
+                    resultIcon.textContent = '❌';
+                    resultText.textContent = '不正解';
+                    userAnswer.textContent = `❌ あなたの回答: ${selectedAnswers.join(', ')}`;
+                    let correctText;
+                    if (question.type === 'tf') {
+                        correctText = (question.correct === 'true' || question.correct === '正しい') ? '正しい' : '間違い';
+                    } else {
+                        correctText = Array.isArray(question.correct) ? question.correct.join(', ') : question.correct;
+                    }
+                    correctAnswer.textContent = `✅ 正解: ${correctText}`;
+                }
+                
+                explanation.textContent = `💡 ${question.explanation}`;
+                feedbackDiv.classList.remove('hidden');
+            }
+            
+            showHint() {
+                const question = this.quizQuestions[this.currentQuestionIndex];
+                if (question.hint) {
+                    document.getElementById('hint-text').textContent = question.hint;
+                    document.getElementById('question-hint').classList.remove('hidden');
+                }
+            }
+            
+            nextQuestion() {
+                if (this.currentQuestionIndex < this.totalQuestions - 1) {
+                    this.currentQuestionIndex++;
+                    this.displayQuestion();
+                } else {
+                    this.showResults();
+                }
+            }
+            
+            showResults() {
+                const accuracy = Math.round((this.correctAnswers / this.totalQuestions) * 100);
+                
+                document.getElementById('final-score').textContent = `${accuracy}%`;
+                document.getElementById('final-message').textContent = 
+                    accuracy >= 90 ? '素晴らしい！' :
+                    accuracy >= 70 ? 'よくできました！' :
+                    accuracy >= 50 ? 'もう少し頑張りましょう！' :
+                    '復習が必要です！';
+                
+                document.getElementById('final-stats').textContent = 
+                    `${this.correctAnswers}問正解 / ${this.totalQuestions}問中`;
+                
+                this.showScreen('result-screen');
+            }
+            
+            retryQuiz() {
+                this.startQuiz();
+            }
+            
+            backToMenu() {
+                this.showScreen('main-menu');
+            }
+            
+            showScreen(screenId) {
+                const screens = ['main-menu', 'quiz-screen', 'result-screen', 'admin-screen'];
+                screens.forEach(screen => {
+                    document.getElementById(screen).classList.add('hidden');
+                });
+                document.getElementById(screenId).classList.remove('hidden');
+            }
+            
+            showPasswordModal() {
+                document.getElementById('password-modal').classList.remove('hidden');
+                document.getElementById('admin-password').focus();
+            }
+            
+            confirmPassword() {
+                const password = document.getElementById('admin-password').value;
+                if (password === 'admin2024') {
+                    document.getElementById('password-modal').classList.add('hidden');
+                    document.getElementById('admin-password').value = '';
+                    this.showScreen('admin-screen');
+                    this.updateAdminStats();
+                } else {
+                    alert('パスワードが間違っています。');
+                }
+            }
+            
+            cancelPassword() {
+                document.getElementById('password-modal').classList.add('hidden');
+                document.getElementById('admin-password').value = '';
+            }
+            
+            closeAdmin() {
+                this.showScreen('main-menu');
+            }
+            
+            importExcel() {
+                document.getElementById('file-input').click();
+            }
+            
+            async handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const data = await this.readExcelFile(file);
+                    this.questions = data;
+                    await this.saveQuestionsToDB();
+                    this.updateCategoryOptions(); // 分野選択肢を更新
+                    this.updateAdminStats();
+                    alert('データのインポートが完了しました。分野選択肢も更新されました。');
+                } catch (error) {
+                    alert('ファイルの読み込みに失敗しました: ' + error.message);
+                }
+            }
+            
+            readExcelFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                            
+                            const questions = jsonData.map((row, index) => {
+                                const options = [row['選択肢1'], row['選択肢2'], row['選択肢3'], row['選択肢4']].filter(Boolean);
+                                let correct = row['正解'];
+                                
+                                // 複数選択の場合の正解処理
+                                if (row['形式'] === '複数選択' && typeof correct === 'string') {
+                                    if (correct.includes(';')) {
+                                        correct = correct.split(';');
+                                    } else if (correct.includes(',')) {
+                                        correct = correct.split(',');
+                                    }
+                                }
+                                
+                                return {
+                                    id: row['ID'] || index + 1,
+                                    category: row['分野'] || 'その他',
+                                    question: row['問題文'] || '',
+                                    options: options,
+                                    correct: correct,
+                                    explanation: row['解説'] || '',
+                                    type: row['形式'] || '択一',
+                                    hint: row['ヒント'] || ''
+                                };
+                            });
+                            
+                            resolve(questions);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    };
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+            
+            exportExcel() {
+                const data = this.questions.map(q => ({
+                    'ID': q.id,
+                    '分野': q.category,
+                    '問題文': q.question,
+                    '選択肢1': q.options[0] || '',
+                    '選択肢2': q.options[1] || '',
+                    '選択肢3': q.options[2] || '',
+                    '選択肢4': q.options[3] || '',
+                    '正解': Array.isArray(q.correct) ? q.correct.join(';') : q.correct,
+                    '解説': q.explanation,
+                    '形式': q.type,
+                    'ヒント': q.hint,
+                    '備考': '',
+                    '正解3': Array.isArray(q.correct) ? q.correct.map(c => `選択肢${q.options.indexOf(c) + 1}`).join(';') : `選択肢${q.options.indexOf(q.correct) + 1}`
+                }));
+                
+                const worksheet = XLSX.utils.json_to_sheet(data);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Questions');
+                
+                const fileName = 'voice_actor_quiz_questions.xlsx';
+                XLSX.writeFile(workbook, fileName);
+            }
+            
+            async clearData() {
+                if (confirm('すべての問題データを削除しますか？この操作は取り消せません。')) {
+                    this.questions = [];
+                    await this.saveQuestionsToDB();
+                    this.updateCategoryOptions(); // 分野選択肢を更新
+                    this.updateAdminStats();
+                    alert('データをクリアしました。');
+                }
+            }
+        }
+        
+        // アプリケーション開始
+        document.addEventListener('DOMContentLoaded', () => {
+            new QuizApp();
+        });
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"96128a68ff1b62e1","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.7.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
+</body>
+</html>
+    <script id="html_badge_script1">
+        window.__genspark_remove_badge_link = "https://www.genspark.ai/api/html_badge/" +
+            "remove_badge?token=To%2FBnjzloZ3UfQdcSaYfDsxkJu18m5BkHHJ%2BNRmUBfgmXEZ3ESXpzXw9vBBWTd7vhFMeIYklqjJOnUMNgpbBXR160gUfkkBoLNRY8eSPMzEbOHUAUR7hwJbuVTr%2FSATJTGH8T7%2F680PZqTr3Fj90LK1DxJCVSjkp92j2SC0qIX2TdWTsQ1fJjCkDy9LMj6WvaO%2Fl8hYyGYrNBsGs80Oqpu4L5fMxLY%2BKmTl7UzP0XzFO4XQPvRr3oEH9VXt%2B64b09ih4f395nTkAA7Orur6ymH%2Fh1Pd64ZrZGIZDpkAdr7fl7gdMOBL8AUQ5y4U%2FboCgvoum%2BbRjnaAI87uSP95%2BJNkMNcDu6Ri5a5M5fpNWTxompkND4Uf6JWi674RiKy%2BXjeXQcgYdErOqrrYRiHZud%2BkZMIHNVS7qYvlNrUIMgyU7%2FM1fgj%2BxBM%2BR62EULg52B7%2BZj8IkO7s%2BrSmztI%2BTOF1pQOOPvZkzBuuG8GXUlV2Hy%2Bj403ryBCj%2BIySUhWVVew3N3MN43qB%2BjtKit6l0GjkgQy12xWktvrlwGqCp1n0%3D";
+        window.__genspark_locale = "ja-JP";
+        window.__genspark_token = "To/BnjzloZ3UfQdcSaYfDsxkJu18m5BkHHJ+NRmUBfgmXEZ3ESXpzXw9vBBWTd7vhFMeIYklqjJOnUMNgpbBXR160gUfkkBoLNRY8eSPMzEbOHUAUR7hwJbuVTr/SATJTGH8T7/680PZqTr3Fj90LK1DxJCVSjkp92j2SC0qIX2TdWTsQ1fJjCkDy9LMj6WvaO/l8hYyGYrNBsGs80Oqpu4L5fMxLY+KmTl7UzP0XzFO4XQPvRr3oEH9VXt+64b09ih4f395nTkAA7Orur6ymH/h1Pd64ZrZGIZDpkAdr7fl7gdMOBL8AUQ5y4U/boCgvoum+bRjnaAI87uSP95+JNkMNcDu6Ri5a5M5fpNWTxompkND4Uf6JWi674RiKy+XjeXQcgYdErOqrrYRiHZud+kZMIHNVS7qYvlNrUIMgyU7/M1fgj+xBM+R62EULg52B7+Zj8IkO7s+rSmztI+TOF1pQOOPvZkzBuuG8GXUlV2Hy+j403ryBCj+IySUhWVVew3N3MN43qB+jtKit6l0GjkgQy12xWktvrlwGqCp1n0=";
+    </script>
+    
+    <script id="html_notice_dialog_script" src="https://www.genspark.ai/notice_dialog.js"></script>
+    
